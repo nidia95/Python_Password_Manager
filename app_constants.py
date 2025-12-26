@@ -4,16 +4,20 @@ App Constants
 
 from rich.style import Style
 
+from pathlib import Path
+
 # Start: You can change these values
 DEFAULT_EMAIL: str = "dariusht@gmail.com"
 DEFAULT_MOBILE: str = "9121087461"
 DEFAULT_USERNAME: str = "dariusht"
 GENERATED_PASSWORD_LENGTH: int = 24
 
-DATABASE_FILE_PATH: str = "./data.db"
+DATA_FILE_PATH: Path = Path("./data.bin")
 # End: You can change these values
 
-DATE_TIME_FORMAT: str = "%Y_%m_%d_%H_%M_%S"
+BACKUP_FILE_FORMAT: str = "%Y_%m_%d_%H_%M_%S"
+
+DATE_TIME_FORMAT: str = "%Y-%m-%d %H:%M:%S"
 
 COLUMN_WIDTH_ID: int = 3
 COLUMN_WIDTH_NAME: int = 40

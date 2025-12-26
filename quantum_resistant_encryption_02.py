@@ -2,6 +2,8 @@ import os
 import base64
 import getpass
 
+from typing import Tuple
+
 from cryptography.hazmat.backends import default_backend
 
 from cryptography.hazmat.primitives import hashes
@@ -55,17 +57,21 @@ def encrypt_text(plaintext: str, password: str) -> dict:
     salt = os.urandom(16)
 
     # Derive 256-bit key from password
-    key = derive_key_from_password(password, salt)
+    key = derive_key_from_password(password=password, salt=salt)
 
     # Generate random nonce (12 bytes for GCM)
     nonce = os.urandom(12)
 
     # Create AES-256-GCM cipher
-    cipher = Cipher(algorithms.AES(key), modes.GCM(nonce), backend=default_backend())
+    cipher = Cipher(
+        algorithm=algorithms.AES(key=key),
+        mode=modes.GCM(initialization_vector=nonce),
+        backend=default_backend(),
+    )
     encryptor = cipher.encryptor()
 
     # Encrypt the plaintext
-    ciphertext = encryptor.update(plaintext.encode("utf-8")) + encryptor.finalize()
+    ciphertext = encryptor.update(data=plaintext.encode("utf-8")) + encryptor.finalize()
 
     # Get authentication tag (prevents tampering)
     tag = encryptor.tag
@@ -79,7 +85,7 @@ def encrypt_text(plaintext: str, password: str) -> dict:
     }
 
 
-def decrypt_text(encrypted_data: dict, password: str) -> str:
+def decrypt_text(encrypted_data: dict, password: str) -> Tuple[str, bool]:
     """
     Decrypt text encrypted with AES-256-GCM
 
@@ -102,26 +108,29 @@ def decrypt_text(encrypted_data: dict, password: str) -> str:
         tag = base64.b64decode(encrypted_data["tag"])
 
         # Derive the same key from password and salt
-        key = derive_key_from_password(password, salt)
+        key = derive_key_from_password(password=password, salt=salt)
 
         # Create AES-256-GCM cipher with authentication tag
         cipher = Cipher(
-            algorithms.AES(key), modes.GCM(nonce, tag), backend=default_backend()
+            algorithm=algorithms.AES(key=key),
+            mode=modes.GCM(initialization_vector=nonce, tag=tag),
+            backend=default_backend(),
         )
         decryptor = cipher.decryptor()
 
         # Decrypt and verify authentication
-        plaintext = decryptor.update(ciphertext) + decryptor.finalize()
+        plaintext = decryptor.update(data=ciphertext) + decryptor.finalize()
 
-        return plaintext.decode("utf-8")
+        return True, plaintext.decode("utf-8")
 
     except Exception as e:
-        raise Exception(
-            f"Decryption failed! Wrong password or data corrupted/tampered. Error: {str(e)}"
+        return (
+            False,
+            f"Decryption failed! Wrong password or data corrupted/tampered.",
         )
 
 
-def validate_password_strength(password: str) -> tuple:
+def validate_password_strength(password: str) -> Tuple[bool, str]:
     """
     Check if password is strong enough for quantum-resistant encryption
 
@@ -160,7 +169,7 @@ if __name__ == "__main__":
     print("=" * 60 + "\n")
 
     # Sample text to encrypt
-    original_text = """This is a highly confidential message that needs 
+    original_text: str = """This is a highly confidential message that needs 
 protection against quantum computer attacks. AES-256 provides 
 sufficient security for the next 20-30 years."""
 
@@ -170,8 +179,10 @@ sufficient security for the next 20-30 years."""
 
     # Get password for encryption
     while True:
-        password = getpass.getpass("Enter password for encryption (min 16 chars): ")
-        is_valid, message = validate_password_strength(password)
+        password: str = getpass.getpass(
+            prompt="Enter password for encryption (min 16 chars): "
+        )
+        is_valid, message = validate_password_strength(password=password)
         if is_valid:
             print(f"✓ {message}\n")
             break
@@ -180,7 +191,7 @@ sufficient security for the next 20-30 years."""
 
     # Encrypt the text
     print("Encrypting...")
-    encrypted_data = encrypt_text(original_text, password)
+    encrypted_data: dict = encrypt_text(plaintext=original_text, password=password)
 
     print("\nEncrypted Data:")
     print(f"Salt: {encrypted_data['salt'][:32]}...")
@@ -190,19 +201,25 @@ sufficient security for the next 20-30 years."""
     print("\n" + "=" * 60 + "\n")
 
     # Get password for decryption
-    password_decrypt = getpass.getpass("Enter password for decryption: ")
+    password_decrypt: str = getpass.getpass(prompt="Enter password for decryption: ")
 
     # Decrypt the text
     print("\nDecrypting...")
-    try:
-        decrypted_text = decrypt_text(encrypted_data, password_decrypt)
+
+    is_decrypted: bool
+    plaintext: str
+    is_decrypted, plaintext = decrypt_text(
+        encrypted_data=encrypted_data, password=password_decrypt
+    )
+    if is_decrypted:
         print("\n✓ Decryption Successful!")
         print("\nDecrypted Text:")
-        print(f'"{decrypted_text}"')
+        print(f'"{plaintext}"')
 
         # Verify integrity
-        if decrypted_text == original_text:
+        if plaintext == original_text:
             print("\n✓ Data integrity verified - No tampering detected")
-
-    except Exception as e:
-        print(f"\n✗ Error: {e}")
+    else:
+        print("\n✗ Decryption Failed!")
+        print(f"\nError:")
+        print(f'"{plaintext}"')
