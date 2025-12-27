@@ -1,7 +1,8 @@
 """
-App Constants
+Application Constants
 """
 
+from pathlib import Path
 from rich.style import Style
 
 from pathlib import Path
@@ -15,9 +16,8 @@ GENERATED_PASSWORD_LENGTH: int = 24
 DATA_FILE_PATH: Path = Path("./data.bin")
 # End: You can change these values
 
-BACKUP_FILE_FORMAT: str = "%Y_%m_%d_%H_%M_%S"
-
 DATE_TIME_FORMAT: str = "%Y-%m-%d %H:%M:%S"
+BACKUP_FILE_FORMAT: str = "%Y_%m_%d_%H_%M_%S"
 
 COLUMN_WIDTH_ID: int = 3
 COLUMN_WIDTH_NAME: int = 40

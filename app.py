@@ -2,7 +2,6 @@ import os
 import time
 import json
 import pickle
-import hashlib
 import getpass
 import pyperclip
 
@@ -10,24 +9,26 @@ from pathlib import Path
 
 from rich import print
 from rich.console import Console
-from dt_security import generate_password
 
-from contributors import *
 from app_constants import *
+from app_about import display_about
 
-from dt_security import (
-    encrypt_text,
-    decrypt_text,
-    validate_password_strength,
-)
+from dt_cryptography import hash_data
+from dt_cryptography import generate_password
+from dt_cryptography import encrypt_plain_text
+from dt_cryptography import decrypt_encrypted_data
+from dt_cryptography import validate_password_strength
 
-__version__ = "1.0"
+
+# Nadia changed version from .7 to .8
+__version__ = "0.8"
 
 
 def get_now(format: str = DATE_TIME_FORMAT) -> str:
     """Get now"""
 
     now: str = time.strftime(format)
+
     return now
 
 
@@ -73,11 +74,13 @@ def display_menu_and_get_user_prompt(menu_items: list[str]) -> str:
 
     console.print("\nEnter your choice:", end=" ", style=STYLE_MESSAGE_WAITING)
     choice: str = input().strip()
+
     return choice
 
 
 def goodbye() -> None:
     """Encrypt and save data before exit."""
+
     encrypt_and_save_data(password=master_password)
 
     console.print("\nGoodbye!\n", style=STYLE_MESSAGE_SUCCESS)
@@ -99,6 +102,7 @@ def fix_special_field_value(value: str) -> str:
     """Fix special field value"""
 
     value = value.replace(" ", "")
+
     return value
 
 
@@ -285,6 +289,7 @@ def edit_item(item: dict) -> None:
         sort_items_by_name_and_update_ids()
 
         display_success_message(message="Item updated successfully.")
+
         press_enter_to_continue()
 
 
@@ -300,6 +305,7 @@ def display_success_message(message: str) -> None:
     console.print(f"\n[+] {message}", style=STYLE_MESSAGE_SUCCESS)
 
 
+# Nadia changed choise to choice
 def display_items(display_password: bool = False) -> None:
     """Display items"""
 
@@ -323,14 +329,15 @@ def display_items(display_password: bool = False) -> None:
             "Type 'ID' and then press [ENTER] to display item details or just press [ENTER] to go back:"
         )
         console.print(message, end=" ", style=STYLE_MESSAGE_WAITING)
-        choise: str = input().strip()
+        choice: str = input().strip()
 
-        if not choise:
+        if not choice:
             break
 
         try:
-            choise_int: int = int(choise)
-            display_item_details(item=items[choise_int - 1])
+            choice_int: int = int(choice)
+            display_item_details(item=items[choice_int - 1])
+
         except:
             pass
 
@@ -517,47 +524,30 @@ def display_table_footer() -> None:
     console.print("-" * total_width, style=STYLE_LABEL)
 
 
+# Nadia
 def change_master_password() -> None:
     """Change master password"""
 
     global master_password
 
-    clear_screen_and_display(title="Change Master Password")
-    console.print(
-        "\nEnter Previous Master Password:",
-        end=" ",
-        style=STYLE_MESSAGE_WAITING,
-    )
-    password: str = getpass.getpass(prompt="")
+    try:
+        clear_screen_and_display(title="Change Master Password")
 
-    if password == master_password:
-        master_password = set_master_password(is_change_password=True)
-    else:
-        display_error_message(message="Previous Master Password is incorrect.")
-        press_enter_to_continue()
+        previous_password_label: str = "Enter Previous Master Password"
 
+        display_label(label=previous_password_label, width=len(previous_password_label))
+        password: str = getpass.getpass(prompt="")
 
-def display_about() -> None:
-    """Display About"""
+        if password == master_password:
+            master_password = set_master_password(is_change_password=True)
 
-    # About Dariush Tasdighi
-    clear_screen_and_display(title="About DT Password Manager Developers")
+        else:
+            display_error_message(message="Previous Master Password is incorrect!")
+            press_enter_to_continue()
 
-    max_width: int = len(TELEGRAM_CHANNEL_1_LABEL)
-
-    display_label(label=f"__Version__", width=len(__version__))
-    print(__version__)
-
-    print()
-    for name, details in CONTRIBUTORS.items():
-        display(title=f"★ {name}")
-        for label, value in details.items():
-            display_label(label=f" • {label}", width=max_width)
-            print(value)
-
+    # Nadia added this to cancel with Ctrl+C
+    except KeyboardInterrupt:
         print()
-
-    press_enter_to_continue()
 
 
 def display_main_menu() -> None:
@@ -592,7 +582,9 @@ def display_main_menu() -> None:
             case "4":
                 change_master_password()
             case "5":
+                clear_screen()
                 display_about()
+                press_enter_to_continue()
             case "0" | "bye" | "end" | "exit" | "quit" | "q":
                 goodbye()
 
@@ -600,26 +592,34 @@ def display_main_menu() -> None:
 def is_master_password_set() -> bool:
     """Check if the master password file exists and is non-empty."""
 
-    # Check if file exists and is non-empty
-    return DATA_FILE_PATH.is_file() and DATA_FILE_PATH.stat().st_size > 0
+    # Nadia Check if file exists and is non-empty
+    result = DATA_FILE_PATH.is_file() and DATA_FILE_PATH.stat().st_size > 0
+
+    return result
 
 
+# Nadia Changed UI formats
 def set_master_password(is_change_password: bool = False) -> str:
     """Get master password and save it globally."""
+
+    confirm_password_label: str = "Confirm Master Password"
 
     # Choose title and prompt based on is_change_password
     if is_change_password:
         title: str = "Change Master Password"
-        prompt_message = "\nEnter New Master Password:"
+        prompt_message = "Enter New Master Password"
+        previous_password_label: str = "Enter Previous Master Password"
+        max_width: int = len(previous_password_label)
 
     else:
         title: str = "Set up your Master Password"
-        prompt_message = "\nEnter Master Password:"
+        prompt_message = "Enter Master Password"
+        max_width: int = len(confirm_password_label)
 
     while True:
         clear_screen_and_display(title=title)
 
-        console.print(prompt_message, end=" ", style=STYLE_MESSAGE_WAITING)
+        display_label(label=prompt_message, width=max_width)
         password: str = getpass.getpass(prompt="")
 
         message: str
@@ -633,94 +633,111 @@ def set_master_password(is_change_password: bool = False) -> str:
             continue
 
         # Confirm password
-        console.print("Confirm Master Password:", end=" ", style=STYLE_MESSAGE_WAITING)
+        display_label(label=confirm_password_label, width=max_width)
         confirm_password: str = getpass.getpass(prompt="")
 
         if password != confirm_password:
-            message: str = "Passwords do not match. Please try again."
+            message: str = "Passwords does not match. Please try again!"
             display_error_message(message=message)
             press_enter_to_continue()
             continue
 
         # Succuss
         display_success_message(message=message)
-        # NOTE: This line Ensures the password is preserved even if the user exits with Ctrl+C rather than 'bye' or 'end'.
+        press_enter_to_continue()
+
+        # NOTE: This line Ensures the password is preserved,
+        # even if the user exits with Ctrl+C rather than 'bye' or 'end'.
         encrypt_and_save_data(password=password)
+
         return password
 
 
-def hash_data(data: str) -> str:
-    return hashlib.sha256(data.encode()).hexdigest()
-
-
+# Nadia added docstring
 def handle_backup_if_changed(password: str, new_json_string: str) -> None:
+    """Check for data changes and create a backup."""
 
-    new_data_hash: str = hash_data(new_json_string)
+    new_data_hash: str = hash_data(data=new_json_string)
 
-    with open(DATA_FILE_PATH, "rb") as f:
-        existing_encrypted = pickle.load(file=f)
+    with open(file=DATA_FILE_PATH, mode="rb") as file:
+        existing_encrypted = pickle.load(file=file)
 
-    _, existing_json_string = decrypt_text(
-        encrypted_data=existing_encrypted, password=password
+    _, existing_json_string = decrypt_encrypted_data(
+        password=password,
+        encrypted_data=existing_encrypted,
     )
 
-    existing_hash = hash_data(data=existing_json_string)
+    existing_hash = hash_data(
+        data=existing_json_string,
+    )
 
     if existing_hash != new_data_hash:
-        now: str = get_now(BACKUP_FILE_FORMAT)
+        now: str = get_now(
+            format=BACKUP_FILE_FORMAT,
+        )
 
         backup_file_path: Path = DATA_FILE_PATH.with_name(
             f"{DATA_FILE_PATH.stem}_{now}{DATA_FILE_PATH.suffix}"
         )
+
         DATA_FILE_PATH.rename(target=backup_file_path)
 
 
 def encrypt_and_save_data(password: str) -> None:
     """Encrypt items list using AES-256-GCM (Quantum-resistant symmetric encryption)"""
 
-    # 1. Serialize new data
+    # Serialize new data
     new_json_string: str = json.dumps(obj=items)
 
     # Backup last file if there is change in data
-
     if DATA_FILE_PATH.is_file():
-        handle_backup_if_changed(password=password, new_json_string=new_json_string)
+        handle_backup_if_changed(
+            password=password,
+            new_json_string=new_json_string,
+        )
 
-    encrypted_data: dict = encrypt_text(plaintext=new_json_string, password=password)
+    encrypted_data: dict = encrypt_plain_text(
+        password=password,
+        plain_text=new_json_string,
+    )
 
-    with open(file=DATA_FILE_PATH, mode="wb") as f:
-        pickle.dump(obj=encrypted_data, file=f)
+    with open(file=DATA_FILE_PATH, mode="wb") as file:
+        pickle.dump(obj=encrypted_data, file=file)
 
 
 def load_and_decrypt_data() -> str:
     """Decrypt items list using AES-256-GCM (Quantum-resistant symmetric encryption)"""
+
     while True:
-        title: str = f"Master Password Authentication"
+        title: str = "Master Password Authentication"
         clear_screen_and_display(title=title)
 
-        console.print("\nEnter Master Password:", end=" ", style=STYLE_MESSAGE_WAITING)
+        enter_password_label: str = "Enter Master Password"
+        display_label(label=enter_password_label, width=len(enter_password_label))
         password: str = getpass.getpass(prompt="")
 
-        with open(file=DATA_FILE_PATH, mode="rb") as f:
-            encrypted_data: dict = pickle.load(file=f)
+        with open(file=DATA_FILE_PATH, mode="rb") as file:
+            encrypted_data: dict = pickle.load(file=file)
 
-        plaintext: str
+        plain_text: str
         is_decrypted: bool
 
-        is_decrypted, plaintext = decrypt_text(
-            encrypted_data=encrypted_data, password=password
+        is_decrypted, plain_text = decrypt_encrypted_data(
+            password=password,
+            encrypted_data=encrypted_data,
         )
 
         if not is_decrypted:
-            display_error_message(message=plaintext)
+            display_error_message(message=plain_text)
             press_enter_to_continue()
             continue
 
         if is_decrypted:
             items.clear()
-            items.extend(json.loads(plaintext))
+            items.extend(json.loads(plain_text))
 
-            display_success_message(message=plaintext)
+            display_success_message(message=plain_text)
+
             return password
 
 
