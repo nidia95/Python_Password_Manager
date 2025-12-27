@@ -6,6 +6,7 @@ import os
 import random
 import string
 import base64
+import hashlib
 
 from typing import Tuple
 
@@ -19,6 +20,20 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 
 __version__ = "1.1.0"
+
+
+def hash_data(data: str) -> str:
+    """
+    Generate a SHA-256 hash from the given string.
+
+    Args:
+        data (str): The input text to be hashed.
+
+    Returns:
+        str: The hexadecimal SHA-256 hash of the input.
+    """
+
+    return hashlib.sha256(data.encode()).hexdigest()
 
 
 def generate_password(length: int = 24) -> str:
