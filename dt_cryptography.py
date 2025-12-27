@@ -1,5 +1,5 @@
 """
-DT Security
+DT Cryptography
 """
 
 import os
@@ -15,12 +15,10 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers import modes
 from cryptography.hazmat.primitives.ciphers import Cipher
 from cryptography.hazmat.primitives.ciphers import algorithms
-
-# from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 
 def generate_password(length: int = 24) -> str:
@@ -54,6 +52,7 @@ def generate_password(length: int = 24) -> str:
 
     # Fill the rest of the password with random characters
     all_characters = digit + special + lowercase + uppercase
+
     password += random.choices(
         k=length - 4,
         population=all_characters,
@@ -63,6 +62,7 @@ def generate_password(length: int = 24) -> str:
     random.shuffle(x=password)
 
     result: str = "".join(password)
+
     return result
 
 
@@ -86,10 +86,12 @@ def derive_key_from_password(password: str, salt: bytes) -> bytes:
         backend=default_backend(),
     )
 
-    return kdf.derive(password.encode("utf-8"))
+    result = kdf.derive(password.encode(encoding="utf-8"))
+
+    return result
 
 
-def encrypt_text(plaintext: str, password: str) -> dict:
+def encrypt_plain_text(plain_text: str, password: str) -> dict:
     """
     Encrypt text using AES-256-GCM (Quantum-resistant symmetric encryption)
 
@@ -108,35 +110,44 @@ def encrypt_text(plaintext: str, password: str) -> dict:
     salt = os.urandom(16)
 
     # Derive 256-bit key from password
-    key = derive_key_from_password(password=password, salt=salt)
+    key = derive_key_from_password(
+        salt=salt,
+        password=password,
+    )
 
     # Generate random nonce (12 bytes for GCM)
     nonce = os.urandom(12)
 
     # Create AES-256-GCM cipher
     cipher = Cipher(
+        backend=default_backend(),
         algorithm=algorithms.AES(key=key),
         mode=modes.GCM(initialization_vector=nonce),
-        backend=default_backend(),
     )
+
     encryptor = cipher.encryptor()
 
     # Encrypt the plaintext
-    ciphertext = encryptor.update(data=plaintext.encode("utf-8")) + encryptor.finalize()
+    ciphertext = (
+        encryptor.update(data=plain_text.encode(encoding="utf-8"))
+        + encryptor.finalize()
+    )
 
     # Get authentication tag (prevents tampering)
     tag = encryptor.tag
 
     # Return all components needed for decryption
-    return {
-        "salt": base64.b64encode(salt).decode("utf-8"),
-        "nonce": base64.b64encode(nonce).decode("utf-8"),
-        "ciphertext": base64.b64encode(ciphertext).decode("utf-8"),
-        "tag": base64.b64encode(tag).decode("utf-8"),
+    encrypted_data = {
+        "salt": base64.b64encode(salt).decode(encoding="utf-8"),
+        "nonce": base64.b64encode(nonce).decode(encoding="utf-8"),
+        "ciphertext": base64.b64encode(ciphertext).decode(encoding="utf-8"),
+        "tag": base64.b64encode(tag).decode(encoding="utf-8"),
     }
 
+    return encrypted_data
 
-def decrypt_text(encrypted_data: dict, password: str) -> Tuple[bool, str]:
+
+def decrypt_encrypted_data(encrypted_data: dict, password: str) -> Tuple[bool, str]:
     """
     Decrypt text encrypted with AES-256-GCM
 
@@ -145,7 +156,7 @@ def decrypt_text(encrypted_data: dict, password: str) -> Tuple[bool, str]:
         password (str): User's password (must match encryption password)
 
     Returns:
-        Tuple[bool, str]: True if decryption was successful, False otherwise
+        str: Decrypted plaintext
 
     Raises:
         Exception: If password is wrong, data is corrupted, or tampered
@@ -153,32 +164,34 @@ def decrypt_text(encrypted_data: dict, password: str) -> Tuple[bool, str]:
 
     try:
         # Decode Base64 components
-        salt = base64.b64decode(encrypted_data["salt"])
-        nonce = base64.b64decode(encrypted_data["nonce"])
-        ciphertext = base64.b64decode(encrypted_data["ciphertext"])
-        tag = base64.b64decode(encrypted_data["tag"])
+        tag = base64.b64decode(s=encrypted_data["tag"])
+        salt = base64.b64decode(s=encrypted_data["salt"])
+        nonce = base64.b64decode(s=encrypted_data["nonce"])
+        cipher_text = base64.b64decode(s=encrypted_data["ciphertext"])
 
         # Derive the same key from password and salt
-        key = derive_key_from_password(password=password, salt=salt)
+        key = derive_key_from_password(
+            salt=salt,
+            password=password,
+        )
 
         # Create AES-256-GCM cipher with authentication tag
         cipher = Cipher(
+            backend=default_backend(),
             algorithm=algorithms.AES(key=key),
             mode=modes.GCM(initialization_vector=nonce, tag=tag),
-            backend=default_backend(),
         )
+
         decryptor = cipher.decryptor()
 
         # Decrypt and verify authentication
-        plaintext = decryptor.update(data=ciphertext) + decryptor.finalize()
+        plain_text = decryptor.update(data=cipher_text) + decryptor.finalize()
 
-        return True, plaintext.decode("utf-8")
+        result = True, plain_text.decode(encoding="utf-8")
 
-    except Exception as e:
-        return (
-            False,
-            f"Decryption failed! Wrong password or data corrupted/tampered",
-        )
+        return result
+    except:
+        return False, "Decryption failed! Wrong password or data corrupted/tampered."
 
 
 def validate_password_strength(password: str) -> Tuple[bool, str]:
@@ -191,21 +204,24 @@ def validate_password_strength(password: str) -> Tuple[bool, str]:
     Returns:
         tuple: (is_valid: bool, message: str)
     """
-    if len(password) < 16:
-        return False, "Password must be at least 16 characters for quantum resistance"
 
-    has_upper = any(c.isupper() for c in password)
-    has_lower = any(c.islower() for c in password)
-    has_digit = any(c.isdigit() for c in password)
-    has_special = any(not c.isalnum() for c in password)
+    if len(password) < 16:
+        return False, "Password must be at least 16 characters for quantum resistance!"
+
+    has_upper = any(char.isupper() for char in password)
+    has_lower = any(char.islower() for char in password)
+    has_digit = any(char.isdigit() for char in password)
+    has_special = any(not char.isalnum() for char in password)
 
     if not (has_upper and has_lower and has_digit and has_special):
         return (
             False,
-            "Password must contain uppercase, lowercase, digits, and special characters",
+            "Password must contain uppercase, lowercase, digits, and special characters!",
         )
 
-    return True, "Password is strong"
+    result = True, "Password is valid and strong enough."
+
+    return result
 
 
 if __name__ == "__main__":
