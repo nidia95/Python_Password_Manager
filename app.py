@@ -1,22 +1,33 @@
 import os
 import time
-import random
+import json
+import pickle
+import hashlib
+import getpass
 import pyperclip
+
+from pathlib import Path
+
 from rich import print
 from rich.console import Console
 from dt_security import generate_password
 
-# import app_constants
-# import app_constants as constants
+from contributors import *
 from app_constants import *
 
-__version__ = "0.6"
+from dt_security import (
+    encrypt_text,
+    decrypt_text,
+    validate_password_strength,
+)
+
+__version__ = "1.5"
 
 
-def get_now() -> str:
+def get_now(format: str = DATE_TIME_FORMAT) -> str:
     """Get now"""
 
-    now: str = time.strftime("%Y-%m-%d %H:%M:%S")
+    now: str = time.strftime(format)
     return now
 
 
@@ -65,9 +76,9 @@ def display_menu_and_get_user_prompt(menu_items: list[str]) -> str:
     return choice
 
 
-# TODO
 def goodbye() -> None:
-    """Goodbye"""
+    """Encrypt and save data before exit."""
+    encrypt_and_save_data(password=master_password)
 
     console.print("\nGoodbye!\n", style=STYLE_MESSAGE_SUCCESS)
     exit()
@@ -171,9 +182,7 @@ def add_new_item() -> None:
 
     sort_items_by_name_and_update_ids()
 
-    success_message = "\n[+] Item added successfully."
-    console.print(success_message, style=STYLE_MESSAGE_SUCCESS)
-
+    display_success_message(message="Item added successfully!")
     press_enter_to_continue()
 
 
@@ -275,16 +284,20 @@ def edit_item(item: dict) -> None:
 
         sort_items_by_name_and_update_ids()
 
-        success_message = "\n[+] Item updated successfully."
-        console.print(success_message, style=STYLE_MESSAGE_SUCCESS)
-
+        display_success_message(message="Item updated successfully.")
         press_enter_to_continue()
 
 
 def display_error_message(message: str) -> None:
     """Display error message"""
 
-    console.print(message, style=STYLE_MESSAGE_ERROR)
+    console.print(f"[-] {message}", style=STYLE_MESSAGE_ERROR)
+
+
+def display_success_message(message: str) -> None:
+    """Display success message"""
+
+    console.print(f"\n[+] {message}", style=STYLE_MESSAGE_SUCCESS)
 
 
 def display_items(display_password: bool = False) -> None:
@@ -294,7 +307,7 @@ def display_items(display_password: bool = False) -> None:
         clear_screen()
 
         if not items:
-            display_error_message(message="[-] No data found!")
+            display_error_message(message="No data found!")
             press_enter_to_continue()
             break
 
@@ -507,9 +520,44 @@ def display_table_footer() -> None:
 def change_master_password() -> None:
     """Change master password"""
 
+    global master_password
+
+    clear_screen_and_display(title="Change Master Password")
+    console.print(
+        "\nEnter Previous Master Password:",
+        end=" ",
+        style=STYLE_MESSAGE_WAITING,
+    )
+    password: str = getpass.getpass(prompt="")
+
+    if password == master_password:
+        master_password = set_master_password(is_change_password=True)
+    else:
+        display_error_message(message="Previous Master Password is incorrect.")
+        press_enter_to_continue()
+
 
 def display_about() -> None:
     """Display About"""
+
+    # About Dariush Tasdighi
+    clear_screen_and_display(title="About DT Password Manager Developers")
+
+    max_width: int = len(TELEGRAM_CHANNEL_1_LABEL)
+
+    display_label(label=f"__Version__", width=len(__version__))
+    print(__version__)
+
+    print()
+    for name, details in CONTRIBUTORS.items():
+        display(title=f"★ {name}")
+        for label, value in details.items():
+            display_label(label=f" • {label}", width=max_width)
+            print(value)
+
+        print()
+
+    press_enter_to_continue()
 
 
 def display_main_menu() -> None:
@@ -527,7 +575,7 @@ def display_main_menu() -> None:
             "",
             "5. About",
             "",
-            "Type '0' | bye | end | exit | quit | 'q' for exit...",
+            "Type '0' | bye | end | exit | quit | 'q' for save and exit...",
         ]
 
         choice: str = display_menu_and_get_user_prompt(
@@ -549,38 +597,135 @@ def display_main_menu() -> None:
                 goodbye()
 
 
-def create_sample_items() -> None:
-    """Create sample items"""
+def is_master_password_set() -> bool:
+    """Check if the master password file exists and is non-empty."""
 
-    now: str = get_now()
+    # Check if file exists and is non-empty
+    return DATA_FILE_PATH.is_file() and DATA_FILE_PATH.stat().st_size > 0
 
-    for index in range(5):
-        item: dict = {
-            KEY_NAME_INSERT_TIME: now,
-            KEY_NAME_UPDATE_TIME: now,
-            #
-            KEY_NAME_PASSWORD: "123456",
-            KEY_NAME_MOBILE: "9121087461",
-            KEY_NAME_DESCRIPTION: "Nothing!",
-            KEY_NAME_USERNAME: f"tasdighi_{index}",
-            KEY_NAME_NAME: f"http://google.com/{index}",
-            KEY_NAME_EMAIL: f"dariusht_tasdighi_{index}@gmail.com",
-        }
 
-        items.append(item)
+def set_master_password(is_change_password: bool = False) -> str:
+    """Get master password and save it globally."""
 
-    items[0]["description"] = "12345678901234567890"
-    items[0]["password"] = "123456789012345678901234567890"
+    # Choose title and prompt based on is_change_password
+    if is_change_password:
+        title: str = "Change Master Password"
+        prompt_message = "\nEnter New Master Password:"
 
-    random.shuffle(x=items)
+    else:
+        title: str = "Set up your Master Password"
+        prompt_message = "\nEnter Master Password:"
 
-    sort_items_by_name_and_update_ids()
+    while True:
+        clear_screen_and_display(title=title)
+
+        console.print(prompt_message, end=" ", style=STYLE_MESSAGE_WAITING)
+        password: str = getpass.getpass(prompt="")
+
+        message: str
+        is_valid: bool
+
+        is_valid, message = validate_password_strength(password=password)
+
+        if not is_valid:
+            display_error_message(message=message)
+            press_enter_to_continue()
+            continue
+
+        # Confirm password
+        console.print("Confirm Master Password:", end=" ", style=STYLE_MESSAGE_WAITING)
+        confirm_password: str = getpass.getpass(prompt="")
+
+        if password != confirm_password:
+            message: str = "Passwords do not match. Please try again."
+            display_error_message(message=message)
+            press_enter_to_continue()
+            continue
+
+        # Succuss
+        display_success_message(message=message)
+        # NOTE: This line Ensures the password is preserved even if the user exits with Ctrl+C rather than 'bye' or 'end'.
+        encrypt_and_save_data(password=password)
+        return password
+
+
+def hash_data(data: str) -> str:
+    return hashlib.sha256(data.encode()).hexdigest()
+
+
+def handle_backup_if_changed(password: str, new_json_string: str) -> None:
+
+    new_data_hash: str = hash_data(new_json_string)
+
+    with open(DATA_FILE_PATH, "rb") as f:
+        existing_encrypted = pickle.load(file=f)
+
+    _, existing_json_string = decrypt_text(
+        encrypted_data=existing_encrypted, password=password
+    )
+
+    existing_hash = hash_data(data=existing_json_string)
+
+    if existing_hash != new_data_hash:
+        now: str = get_now(BACKUP_FILE_FORMAT)
+
+        backup_file_path: Path = DATA_FILE_PATH.with_name(
+            f"{DATA_FILE_PATH.stem}_{now}{DATA_FILE_PATH.suffix}"
+        )
+        DATA_FILE_PATH.rename(target=backup_file_path)
+
+
+def encrypt_and_save_data(password: str) -> None:
+    """Encrypt items list using AES-256-GCM (Quantum-resistant symmetric encryption)"""
+
+    # 1. Serialize new data
+    new_json_string: str = json.dumps(obj=items)
+
+    # Backup last file if there is change in data
+
+    if DATA_FILE_PATH.is_file():
+        handle_backup_if_changed(password=password, new_json_string=new_json_string)
+
+    encrypted_data: dict = encrypt_text(plaintext=new_json_string, password=password)
+
+    with open(file=DATA_FILE_PATH, mode="wb") as f:
+        pickle.dump(obj=encrypted_data, file=f)
+
+
+def load_and_decrypt_data() -> str:
+    """Decrypt items list using AES-256-GCM (Quantum-resistant symmetric encryption)"""
+    while True:
+        title: str = f"Master Password Authentication"
+        clear_screen_and_display(title=title)
+
+        console.print("\nEnter Master Password:", end=" ", style=STYLE_MESSAGE_WAITING)
+        password: str = getpass.getpass(prompt="")
+
+        with open(file=DATA_FILE_PATH, mode="rb") as f:
+            encrypted_data: dict = pickle.load(file=f)
+
+        plaintext: str
+        is_decrypted: bool
+
+        is_decrypted, plaintext = decrypt_text(
+            encrypted_data=encrypted_data, password=password
+        )
+
+        if not is_decrypted:
+            display_error_message(message=plaintext)
+            press_enter_to_continue()
+            continue
+
+        if is_decrypted:
+            items.clear()
+            items.extend(json.loads(plaintext))
+
+            display_success_message(message=plaintext)
+            return password
 
 
 def main() -> None:
     """The main of program"""
-
-    create_sample_items()  # TODO
 
     display_main_menu()
 
@@ -591,6 +736,11 @@ if __name__ == "__main__":
 
         items: list[dict] = []
         master_password: str = ""
+
+        if not is_master_password_set():
+            master_password = set_master_password()
+        else:
+            master_password = load_and_decrypt_data()
 
         main()
 
