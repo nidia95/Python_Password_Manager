@@ -8,9 +8,9 @@ from rich.style import Style
 from pathlib import Path
 
 # Start: You can change these values
-DEFAULT_EMAIL: str = "dariusht@gmail.com"
-DEFAULT_MOBILE: str = "9121087461"
-DEFAULT_USERNAME: str = "dariusht"
+DEFAULT_EMAIL: str = "nidia95@gmail.com"
+DEFAULT_MOBILE: str = "9127289805"
+DEFAULT_USERNAME: str = "nidia95"
 GENERATED_PASSWORD_LENGTH: int = 24
 
 DATA_FILE_PATH: Path = Path("./data.bin")

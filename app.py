@@ -131,74 +131,79 @@ def add_new_item() -> None:
     default_password_label: str = f"Default {LABEL_PASSWORD}"
     max_width: int = len(default_password_label)
 
-    while True:
-        clear_screen_and_display(title="Add New Item")
+    try:
+        while True:
+            clear_screen_and_display(title="Add New Item")
 
-        display_label(label=f"Default {LABEL_EMAIL}", width=max_width)
-        print(DEFAULT_EMAIL)
+            display_label(label=f"Default {LABEL_EMAIL}", width=max_width)
+            print(DEFAULT_EMAIL)
 
-        display_label(label=f"Default {LABEL_MOBILE}", width=max_width)
-        print(DEFAULT_MOBILE)
+            display_label(label=f"Default {LABEL_MOBILE}", width=max_width)
+            print(DEFAULT_MOBILE)
 
-        display_label(label=f"Default {LABEL_USERNAME}", width=max_width)
-        print(DEFAULT_USERNAME)
+            display_label(label=f"Default {LABEL_USERNAME}", width=max_width)
+            print(DEFAULT_USERNAME)
 
-        display_label(label=default_password_label, width=max_width)
-        print("System will generate a strong password!")
+            display_label(label=default_password_label, width=max_width)
+            print("System will generate a strong password!")
 
-        print()
+            print()
 
-        label_name: str = f"{LABEL_NAME} (required)"
-        display_label(label=label_name, width=max_width)
-        name: str = input().strip()
-        if name != "":
-            break
+            label_name: str = f"{LABEL_NAME} (required)"
+            display_label(label=label_name, width=max_width)
+            name: str = input().strip()
+            if name != "":
+                break
 
-    display_label(label=LABEL_EMAIL, width=max_width)
-    email: str = fix_special_field_value(value=input().lower())
-    if email == "":
-        email = DEFAULT_EMAIL
+        display_label(label=LABEL_EMAIL, width=max_width)
+        email: str = fix_special_field_value(value=input().lower())
+        if email == "":
+            email = DEFAULT_EMAIL
 
-    display_label(label=LABEL_MOBILE, width=max_width)
-    mobile: str = fix_special_field_value(value=input().lower())
-    if mobile == "":
-        mobile = DEFAULT_MOBILE
+        display_label(label=LABEL_MOBILE, width=max_width)
+        mobile: str = fix_special_field_value(value=input().lower())
+        if mobile == "":
+            mobile = DEFAULT_MOBILE
 
-    display_label(label=LABEL_USERNAME, width=max_width)
-    username: str = fix_special_field_value(value=input().lower())
-    if username == "":
-        username = DEFAULT_USERNAME
+        display_label(label=LABEL_USERNAME, width=max_width)
+        username: str = fix_special_field_value(value=input().lower())
+        if username == "":
+            username = DEFAULT_USERNAME
 
-    display_label(label=LABEL_PASSWORD, width=max_width)
-    password: str = fix_special_field_value(value=input())
-    if password == "":
-        password = generate_password(
-            length=GENERATED_PASSWORD_LENGTH,
-        )
+        display_label(label=LABEL_PASSWORD, width=max_width)
+        password: str = fix_special_field_value(value=input())
+        if password == "":
+            password = generate_password(
+                length=GENERATED_PASSWORD_LENGTH,
+            )
 
-    display_label(label=LABEL_DESCRIPTION, width=max_width)
-    description: str = input().strip()
+        display_label(label=LABEL_DESCRIPTION, width=max_width)
+        description: str = input().strip()
 
-    now: str = get_now()
+        now: str = get_now()
 
-    item: dict = {
-        KEY_NAME_NAME: name,
-        KEY_NAME_EMAIL: email,
-        KEY_NAME_MOBILE: mobile,
-        KEY_NAME_PASSWORD: password,
-        KEY_NAME_USERNAME: username,
-        KEY_NAME_DESCRIPTION: description,
-        #
-        KEY_NAME_INSERT_TIME: now,
-        KEY_NAME_UPDATE_TIME: now,
-    }
+        item: dict = {
+            KEY_NAME_NAME: name,
+            KEY_NAME_EMAIL: email,
+            KEY_NAME_MOBILE: mobile,
+            KEY_NAME_PASSWORD: password,
+            KEY_NAME_USERNAME: username,
+            KEY_NAME_DESCRIPTION: description,
+            #
+            KEY_NAME_INSERT_TIME: now,
+            KEY_NAME_UPDATE_TIME: now,
+        }
 
-    items.append(item)
+        items.append(item)
 
-    sort_items_by_name_and_update_ids()
+        sort_items_by_name_and_update_ids()
 
-    display_success_message(message="Item added successfully.")
-    press_enter_to_continue()
+        display_success_message(message="Item added successfully.")
+        press_enter_to_continue()
+
+    # NOTE: For cancelling with CTRL+'C'
+    except KeyboardInterrupt:
+        pass
 
 
 def edit_item(item: dict) -> None:
@@ -555,10 +560,7 @@ def change_master_password() -> None:
 
     # NOTE: For cancelling with CTRL+'C'
     except KeyboardInterrupt:
-        print()
-
-    except KeyboardInterrupt:
-        print()
+        pass
 
 
 def display_main_menu() -> None:
